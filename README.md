@@ -1,8 +1,8 @@
 # mcp-bling
 
-Servidor MCP para o **ERP Bling (API v3)**. Conecta o Bling ao Claude (ou a qualquer
-cliente MCP) para consultar e cadastrar **produtos, estoque, pedidos de venda e contatos**
-conversando em português.
+Servidor MCP para o **ERP Bling (API v3)**, com **cobertura completa da API**: catálogo e
+estoque, vendas e compras, financeiro, notas fiscais, logística, produção e cadastros de
+apoio — 38 ferramentas, 178 ações, conversando em português.
 
 Roda localmente via stdio: seus dados e credenciais não passam por nenhum servidor de
 terceiros — o tráfego vai direto da sua máquina para a API do Bling.
@@ -12,6 +12,9 @@ terceiros — o tráfego vai direto da sua máquina para a API do Bling.
 "qual o saldo de estoque da sacola boca de palhaço 40x50?"
 "cadastra o cliente João Silva, CPF 123.456.789-00"
 "muda o pedido 14003 para Atendido"
+"quanto tenho a receber vencendo esta semana?"
+"gera a NF-e do pedido 14003"
+"quais pedidos de compra ainda não chegaram?"
 ```
 
 ## Como usar este projeto
@@ -37,10 +40,11 @@ Preencha a **URL de redirecionamento** exatamente assim:
 http://localhost:8730/callback
 ```
 
-Marque os **escopos** conforme o que você pretende usar (veja a tabela em
-[Escopos e o erro 403](#escopos-e-o-erro-403)). Para ter todas as ferramentas
-funcionando, habilite: Produtos, Estoques, Depósitos, Pedidos de venda, Situações
-e Contatos.
+Marque os **escopos** conforme o que você pretende usar — a tabela em
+[Escopos e o erro 403](#escopos-e-o-erro-403) mostra o de-para com as ferramentas.
+Como o servidor cobre a API inteira, o mais simples é habilitar todos os escopos; se
+preferir restringir, marque só os módulos que você vai usar e as ferramentas dos demais
+responderão 403.
 
 Ao salvar, o Bling mostra o **client_id** e o **client_secret**. Guarde os dois.
 
@@ -97,35 +101,91 @@ npx @modelcontextprotocol/inspector uv run mcp-bling
 
 ## Ferramentas
 
-| Ferramenta | O que faz |
-|---|---|
-| `listar_produtos` | Lista produtos, com filtro por nome ou código (SKU) |
-| `obter_produto` | Dados completos de um produto |
-| `criar_produto` | Cadastra um produto |
-| `atualizar_produto` | Altera campos de um produto |
-| `obter_saldos_estoque` | Saldo físico e virtual, por produto e depósito |
-| `listar_depositos` | Depósitos de estoque cadastrados |
-| `criar_movimentacao_estoque` | Entrada, saída ou balanço de estoque |
-| `listar_pedidos_venda` | Lista pedidos, com filtro por data, contato ou situação |
-| `obter_pedido_venda` | Dados completos de um pedido (itens, parcelas, transporte) |
-| `criar_pedido_venda` | Cria um pedido de venda |
-| `alterar_situacao_pedido` | Muda a situação de um pedido |
-| `listar_situacoes_vendas` | Situações disponíveis e seus IDs |
-| `lancar_estoque_pedido` | Baixa o estoque dos itens de um pedido |
-| `listar_contatos` | Lista clientes e fornecedores |
-| `obter_contato` | Dados completos de um contato |
-| `criar_contato` | Cadastra um contato |
-| `atualizar_contato` | Altera campos de um contato |
+A cobertura é a API v3 inteira: **38 ferramentas, uma por módulo do Bling, somando 178
+ações**. Cada ferramenta recebe um parâmetro `acao` — expor um endpoint por ferramenta
+deixaria a lista impraticável para o modelo (e cara: são ~150 endpoints).
+
+A assinatura é sempre a mesma:
+
+```jsonc
+// pedidos_venda
+{
+  "acao": "listar",                 // qual endpoint do módulo
+  "id": null,                       // registro alvo, quando o caminho pede
+  "id_secundario": null,            // segundo ID (situação, depósito, componente)
+  "pagina": 1, "limite": 100,
+  "filtros": {"dataInicial": "2026-08-01", "dataFinal": "2026-08-31"},
+  "dados": null                     // corpo do POST/PUT/PATCH
+}
+```
+
+A descrição de cada ferramenta lista as ações com método, caminho, filtros aceitos e
+campos de `dados` — o modelo não precisa adivinhar, e filtro ou ação inválidos viram um
+erro que já diz quais existem, sem gastar requisição.
+
+| Ferramenta | Módulo | Ações |
+|---|---|---|
+| `produtos` | Produtos e serviços do catálogo | listar, obter, criar, atualizar, alterar_situacao, alterar_situacao_varios |
+| `produtos_variacoes` | Grade de variações (cor, tamanho) | obter, renomear_atributo, gerar_combinacoes |
+| `produtos_estruturas` | Composição de produtos (formato E) | obter, atualizar, adicionar_componente, alterar_componente |
+| `produtos_fornecedores` | Vínculo produto ↔ fornecedor | listar, obter, criar, atualizar |
+| `produtos_lojas` | Vínculo produto ↔ loja/canal | listar, obter, criar, atualizar |
+| `categorias_produtos` | Categorias do catálogo | listar, obter, criar, atualizar |
+| `grupos_produtos` | Grupos de produtos | listar, obter, criar, atualizar |
+| `estoques` | Saldos e movimentações | saldos, saldos_do_deposito, criar_movimentacao, atualizar_movimentacao |
+| `depositos` | Depósitos de estoque | listar, obter, criar, atualizar |
+| `pedidos_venda` | Pedidos de venda e lançamentos derivados | listar, obter, criar, atualizar, alterar_situacao, lancar_estoque, lancar_estoque_no_deposito, estornar_estoque, lancar_contas, estornar_contas, gerar_nfe, gerar_nfce |
+| `pedidos_compra` | Pedidos de compra a fornecedores | listar, obter, criar, atualizar, alterar_situacao, lancar_estoque, estornar_estoque, lancar_contas, estornar_contas |
+| `propostas_comerciais` | Orçamentos | listar, obter, criar, atualizar, alterar_situacao |
+| `contatos` | Clientes, fornecedores, transportadoras | listar, obter, tipos_do_contato, tipos_cadastrados, consumidor_final, criar, atualizar, alterar_situacao, alterar_situacao_varios |
+| `vendedores` | Vendedores | listar, obter |
+| `canais_venda` | Lojas, marketplaces e integrações | listar, obter, tipos |
+| `categorias_lojas` | De-para de categorias por loja | listar, obter, criar, atualizar |
+| `contas_receber` | Contas a receber e recebimentos | listar, obter, boletos, criar, atualizar, baixar |
+| `contas_pagar` | Contas a pagar e pagamentos | listar, obter, criar, atualizar, baixar |
+| `categorias_financeiras` | Categorias de receitas e despesas | listar, obter |
+| `contas_contabeis` | Portadores (caixa, bancos, cartões) | listar, obter |
+| `formas_pagamento` | Formas de pagamento | listar, obter, criar, atualizar |
+| `borderos` | Borderôs gerados pelas baixas | obter |
+| `nfe` | Notas fiscais eletrônicas | listar, obter, criar, atualizar, enviar, lancar_contas, estornar_contas, lancar_estoque, lancar_estoque_no_deposito, estornar_estoque |
+| `nfce` | Notas de consumidor | listar, obter, criar, atualizar, enviar, lancar_contas, estornar_contas, lancar_estoque, lancar_estoque_no_deposito, estornar_estoque |
+| `nfse` | Notas de serviço e suas configurações | listar, obter, criar, enviar, cancelar, configuracoes, atualizar_configuracoes |
+| `naturezas_operacoes` | CFOP e regras fiscais | listar, obter_tributacao |
+| `logisticas` | Transportadoras e integrações de envio | listar, obter, criar, atualizar, remessas |
+| `logisticas_servicos` | Serviços de envio (PAC, SEDEX, ...) | listar, obter, criar, atualizar, alterar_situacao |
+| `logisticas_etiquetas` | Etiquetas de envio | gerar |
+| `logisticas_objetos` | Volumes de uma remessa | obter, criar, atualizar |
+| `logisticas_remessas` | Remessas e rastreio | obter, criar, atualizar |
+| `situacoes` | Situações por módulo do Bling | vendas, modulos, do_modulo, acoes_do_modulo, transicoes_do_modulo, obter, criar, atualizar |
+| `situacoes_transicoes` | Automações de mudança de status | obter, criar, atualizar |
+| `campos_customizados` | Campos customizados dos cadastros | modulos, tipos, do_modulo, obter, criar, atualizar, alterar_situacao |
+| `contratos` | Contratos de recorrência | listar, obter, criar, atualizar |
+| `ordens_producao` | Ordens de produção | listar, obter, criar, atualizar, alterar_situacao, gerar_sob_demanda |
+| `empresas` | Dados da empresa conectada | dados_basicos |
+| `notificacoes` | Notificações da conta | listar, confirmar_leitura |
 
 Algumas decisões que valem saber:
 
-- **Não existem ferramentas de exclusão.** Apagar produto, pedido ou contato só pela
-  interface do Bling — é proposital, para o modelo não conseguir destruir dados.
+- **Não existem ações de exclusão.** Nenhum `DELETE` é exposto: apagar produto, pedido,
+  conta ou nota só pela interface do Bling — é proposital, para o modelo não conseguir
+  destruir dados. Um teste garante que nenhuma ação use o verbo.
+- **Ficaram de fora** dois módulos da API por decisão, não por esquecimento: `usuarios`
+  (recuperar e redefinir senha) e `homologacao` (certificação de aplicativos no Bling).
 - As listagens devolvem um **resumo** dos campos mais úteis, não o JSON inteiro. Para o
-  registro completo, use as ferramentas `obter_*`.
-- `atualizar_produto` e `atualizar_contato` fazem **busca, mesclagem e reenvio**, porque
+  registro completo, use a ação `obter`.
+- A ação `atualizar` de `produtos` e `contatos` faz **busca, mesclagem e reenvio**, porque
   o `PUT` da API do Bling substitui o recurso inteiro. Sem isso, qualquer campo omitido
-  seria apagado.
+  seria apagado. Nos demais módulos, `atualizar` envia o corpo como veio — reenvie o
+  registro inteiro.
+- As listagens financeiras somam os valores da página em `valor_total_da_pagina` — a API
+  não devolve totalizador e a pergunta quase sempre é "quanto".
+- Baixar uma conta gera um **borderô** (o lançamento no caixa/banco). O Bling costuma
+  exigir portador e categoria na baixa: os IDs saem de `contas_contabeis` e
+  `categorias_financeiras`.
+- `situacoes` tem a ação `vendas` como atalho: situação é uma entidade com ID próprio por
+  módulo, e sem ela o modelo precisaria de duas chamadas só para descobrir o ID de
+  "Atendido".
+- Criar uma nota fiscal **não** a transmite. Emitir é a ação `enviar`, e é irreversível.
 
 ## Escopos e o erro 403
 
@@ -134,14 +194,31 @@ by the access token"**, o aplicativo não tem o escopo daquele recurso. Habilite
 no cadastro do aplicativo e **rode `uv run mcp-bling-auth` de novo** — mexer nos escopos
 revoga as instalações e invalida os tokens atuais.
 
+Como cada ferramenta é um módulo do Bling, o de-para com os escopos é quase direto:
+
 | Escopo no Bling | Ferramentas que dependem dele |
 |---|---|
-| Produtos | `listar_produtos`, `obter_produto`, `criar_produto`, `atualizar_produto` |
-| Estoques | `obter_saldos_estoque`, `criar_movimentacao_estoque` |
-| Depósitos | `listar_depositos` |
-| Pedidos de venda | `listar_pedidos_venda`, `obter_pedido_venda`, `criar_pedido_venda`, `lancar_estoque_pedido` |
-| Situações | `listar_situacoes_vendas`, `alterar_situacao_pedido` |
-| Contatos | `listar_contatos`, `obter_contato`, `criar_contato`, `atualizar_contato` |
+| Produtos | `produtos`, `produtos_variacoes`, `produtos_estruturas`, `produtos_fornecedores`, `produtos_lojas`, `categorias_produtos`, `grupos_produtos` |
+| Estoques | `estoques` |
+| Depósitos | `depositos` |
+| Pedidos de venda | `pedidos_venda` |
+| Pedidos de compra | `pedidos_compra` |
+| Propostas comerciais | `propostas_comerciais` |
+| Situações | `situacoes`, `situacoes_transicoes`, e a ação `alterar_situacao` de qualquer módulo |
+| Contatos | `contatos`, `vendedores` |
+| Contas a receber | `contas_receber` |
+| Contas a pagar | `contas_pagar` |
+| Categorias (receitas e despesas) | `categorias_financeiras` |
+| Contas contábeis | `contas_contabeis` |
+| Formas de pagamento | `formas_pagamento` |
+| Borderôs | `borderos` |
+| Notas fiscais | `nfe`, `nfce`, `nfse`, `naturezas_operacoes` |
+| Logística | `logisticas`, `logisticas_servicos`, `logisticas_etiquetas`, `logisticas_objetos`, `logisticas_remessas` |
+| Ordens de produção | `ordens_producao` |
+| Canais de venda / Lojas | `canais_venda`, `categorias_lojas` |
+| Contratos | `contratos` |
+| Campos customizados | `campos_customizados` |
+| Empresas / Notificações | `empresas`, `notificacoes` |
 
 ## Autenticação e limites
 
@@ -178,14 +255,17 @@ está no `.gitignore` e os tokens moram em `~/.config/mcp-bling/`, nunca no repo
 **Confira isso antes de publicar seu fork** — um `client_secret` vazado permite que
 terceiros se passem pelo seu aplicativo.
 
-Vale lembrar que este servidor dá ao modelo acesso de escrita ao seu ERP: ele pode criar
-produtos, pedidos e contatos, e movimentar estoque. Não há ferramentas de exclusão, mas
-convém revisar o que o modelo propõe antes de confirmar operações em uma conta de produção.
+Vale lembrar que este servidor dá ao modelo acesso de escrita ao seu ERP inteiro: ele pode
+criar produtos, pedidos e contatos, movimentar estoque, baixar contas e **transmitir notas
+fiscais** — a ação `enviar` de `nfe`/`nfce`/`nfse` manda a nota para a SEFAZ e não tem
+volta. Não há ações de exclusão, mas convém revisar o que o modelo propõe antes de
+confirmar operações em uma conta de produção. Se o seu cliente MCP permitir, vale exigir
+confirmação manual nas ferramentas fiscais e financeiras.
 
 ## Desenvolvimento
 
 ```bash
-uv run pytest          # 28 testes, sem tocar na rede
+uv run pytest          # 40 testes, sem tocar na rede
 ```
 
 Os testes mockam o HTTP e isolam os tokens em diretório temporário, então rodam sem
@@ -195,12 +275,21 @@ Estrutura:
 
 ```
 src/mcp_bling/
-├── server.py       # instancia o servidor MCP e registra as ferramentas
+├── server.py       # instancia o servidor MCP e registra os módulos
 ├── auth.py         # fluxo OAuth (comando mcp-bling-auth)
 ├── client.py       # HTTP: renovação de token, throttle, tradução de erros
 ├── tokens.py       # armazenamento local dos tokens
-└── tools/          # as ferramentas, por módulo do Bling
+└── tools/
+    ├── _modulo.py  # a fábrica: Modulo/Acao viram uma tool com parâmetro `acao`
+    ├── _comum.py   # validações compartilhadas (intervalo de datas)
+    ├── resumos.py  # o que cada listagem devolve
+    └── catalogo.py, vendas.py, financeiro.py, fiscal.py, logistica.py, sistema.py
+                    # os módulos declarados como dados
 ```
+
+Adicionar um endpoint é acrescentar uma `Acao` à tupla do módulo: método, caminho,
+filtros aceitos e uma linha de ajuda. A descrição que o modelo lê é gerada daí, então
+declaração e documentação não têm como divergir.
 
 ## Referência da API
 
