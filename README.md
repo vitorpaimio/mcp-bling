@@ -47,6 +47,24 @@ npx @modelcontextprotocol/inspector uv run mcp-bling
 | Pedidos de venda | `listar_pedidos_venda`, `obter_pedido_venda`, `criar_pedido_venda`, `alterar_situacao_pedido`, `listar_situacoes_vendas`, `lancar_estoque_pedido` |
 | Contatos | `listar_contatos`, `obter_contato`, `criar_contato`, `atualizar_contato` |
 
+## Escopos: erro 403
+
+Se uma tool retornar **403 — "The request requires higher privileges than provided by
+the access token"**, o aplicativo cadastrado no Bling não tem o escopo daquele recurso.
+Habilite o escopo correspondente no cadastro do app e **rode `uv run mcp-bling-auth`
+novamente** — alterar escopos revoga todas as instalações, invalidando os tokens atuais.
+
+Mapa de escopo por tool:
+
+| Escopo no app | Tools afetadas |
+|---|---|
+| Produtos | `listar_produtos`, `obter_produto`, `criar_produto`, `atualizar_produto` |
+| Estoques | `obter_saldos_estoque`, `criar_movimentacao_estoque` |
+| Depósitos | `listar_depositos` |
+| Pedidos de venda | `listar_pedidos_venda`, `obter_pedido_venda`, `criar_pedido_venda`, `lancar_estoque_pedido` |
+| Situações | `listar_situacoes_vendas`, `alterar_situacao_pedido` |
+| Contatos | `listar_contatos`, `obter_contato`, `criar_contato`, `atualizar_contato` |
+
 Decisões de design:
 
 - Listagens retornam JSON **resumido** + paginação (`pagina`, `limite` ≤ 100).
