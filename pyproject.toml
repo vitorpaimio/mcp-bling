@@ -3,7 +3,10 @@ name = "mcp-bling"
 version = "0.1.0"
 description = "Servidor MCP local (stdio) para a API v3 do Bling: produtos, estoque, pedidos de venda e contatos"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
+keywords = ["mcp", "bling", "erp", "claude", "model-context-protocol"]
 dependencies = [
     "mcp[cli]>=1.2.0",
     "httpx>=0.27",
@@ -20,3 +23,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_bling"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
