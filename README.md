@@ -50,7 +50,7 @@ Ao salvar, o Bling mostra o **client_id** e o **client_secret**. Guarde os dois.
 ### Passo 2 — instalar
 
 ```bash
-git clone https://github.com/SEU-USUARIO/mcp-bling.git
+git clone https://github.com/vitorpaimio/mcp-bling.git
 cd mcp-bling
 uv sync
 cp .env.example .env
